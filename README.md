@@ -25,10 +25,30 @@ and prove the whole stack on a laptop.
 
 Parameters: `port` (controller location), `preset` (`SLOW`/`NORMAL` — settable at
 runtime to switch presets; `NORMAL` auto-starts a heartbeat), `odom_frame`,
-`base_frame`, `publish_rate`, `status_rate`.
+`base_frame`, `publish_rate`, `status_rate`, `cmd_timeout` (see below).
 
 Runtime configuration (`GET`/`SET`/`SAVE`/`LOAD`/`DEFAULTS`) is intentionally not
 exposed; use the controller's own config tooling for that.
+
+### Command watchdog (`cmd_timeout`)
+
+A **ROS-layer dead-man**, separate from the controller's own heartbeat. If
+`cmd_timeout > 0`, the driver calls `STOP` when no `/cmd_vel` or `/wheel` message
+has arrived within that many seconds. **Default `0.0` (disabled).**
+
+```bash
+ros2 param set /orcp_driver cmd_timeout 0.5      # stop if commands go silent > 0.5 s
+# or at launch:  ros2 run orcp_ros2 orcp_driver --ros-args -p cmd_timeout:=0.5
+```
+
+Why it's separate from the heartbeat: in `NORMAL` the driver sends an ORCP
+heartbeat (`HB`) every 100 ms so the controller knows the *host link* is alive —
+but `HB` also resets the controller's command timeout, so the controller will
+**hold the last commanded velocity** as long as the driver is running. The
+`cmd_timeout` watchdog stops the robot when the *command source* (teleop, nav
+stack, …) goes quiet, even though the link is still up. Recommended for `NORMAL`
+/ autonomous use; with keyboard teleop it turns driving into "keep sending to
+keep moving" (a tap-to-go feel), so leave it disabled if you don't want that.
 
 Examples:
 

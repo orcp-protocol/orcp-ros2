@@ -29,6 +29,11 @@ Parameters:
     base_frame    (str)    default 'base_link'
     publish_rate  (float)  odom/TF/battery rate, Hz (default 20.0)
     status_rate   (float)  /diagnostics (STATUS poll) rate, Hz (default 4.0)
+    cmd_timeout   (float)  ROS-layer command watchdog: if > 0, stop the robot
+                           when no /cmd_vel or /wheel message has arrived within
+                           this many seconds. Default 0.0 (disabled). This is a
+                           dead-man at the ROS layer, independent of the
+                           controller's heartbeat. Settable at runtime.
 
 Runtime configuration (GET/SET/SAVE/LOAD/DEFAULTS) is intentionally not exposed.
 """
@@ -60,12 +65,14 @@ class OrcpDriver(Node):
         self.declare_parameter("base_frame", "base_link")
         self.declare_parameter("publish_rate", 20.0)
         self.declare_parameter("status_rate", 4.0)
+        self.declare_parameter("cmd_timeout", 0.0)
         port = self.get_parameter("port").value
         self.preset = self.get_parameter("preset").value
         self.odom_frame = self.get_parameter("odom_frame").value
         self.base_frame = self.get_parameter("base_frame").value
         rate = float(self.get_parameter("publish_rate").value)
         status_rate = float(self.get_parameter("status_rate").value)
+        self.cmd_timeout = float(self.get_parameter("cmd_timeout").value)
 
         # --- Connect & configure from the controller ---
         self.get_logger().info(f"Connecting to ORCP controller at {port} ...")
@@ -88,6 +95,11 @@ class OrcpDriver(Node):
         self._battery = ""
         self.x = self.y = self.yaw = 0.0
         self._last_t = self.get_clock().now()
+
+        # --- /cmd_vel watchdog state (ROS thread only — no lock needed) ---
+        self._last_cmd_t = self.get_clock().now()
+        self._got_cmd = False
+        self._watchdog_stopped = False
 
         # --- Subscriptions ---
         self.create_subscription(Twist, "cmd_vel", self.on_cmd_vel, 10)
@@ -115,6 +127,7 @@ class OrcpDriver(Node):
         # --- Timers (run on the ROS thread) ---
         self.create_timer(1.0 / rate, self._publish_odom)
         self.create_timer(1.0 / status_rate, self._publish_status)
+        self.create_timer(0.05, self._check_cmd_watchdog)  # 20 Hz command watchdog
         self.get_logger().info(
             "Ready: /cmd_vel, /wheel | /odom, /battery_state, /diagnostics, TF | "
             "services ~/stop, ~/enable | param 'preset'."
@@ -142,11 +155,16 @@ class OrcpDriver(Node):
                     self.get_logger().info(f"preset -> {p.value}")
                 except Exception as exc:
                     return SetParametersResult(successful=False, reason=str(exc))
+            elif p.name == "cmd_timeout":
+                self.cmd_timeout = float(p.value)
+                self._watchdog_stopped = False     # re-arm
+                self.get_logger().info(f"cmd_timeout -> {self.cmd_timeout}s")
         return SetParametersResult(successful=True)
 
     # ---- ROS -> controller ----
 
     def on_cmd_vel(self, msg: Twist):
+        self._note_command()
         try:
             self.robot.cmd_vel(v=msg.linear.x, w=msg.angular.z)
         except Exception as exc:
@@ -156,10 +174,35 @@ class OrcpDriver(Node):
         if len(msg.data) < 2:
             self.get_logger().warn("/wheel expects data=[left_rad_s, right_rad_s]")
             return
+        self._note_command()
         try:
             self.robot.wheel(l=msg.data[0], r=msg.data[1])
         except Exception as exc:
             self.get_logger().warn(f"wheel failed: {exc}")
+
+    # ---- /cmd_vel watchdog (ROS-layer dead-man, independent of the HB) ----
+
+    def _note_command(self):
+        """Record that a fresh drive command arrived (re-arms the watchdog)."""
+        self._got_cmd = True
+        self._watchdog_stopped = False
+        self._last_cmd_t = self.get_clock().now()
+
+    def _check_cmd_watchdog(self):
+        """If commands have gone silent for longer than cmd_timeout, STOP once."""
+        if self.cmd_timeout <= 0.0 or not self._got_cmd or self._watchdog_stopped:
+            return
+        silent = (self.get_clock().now() - self._last_cmd_t).nanoseconds * 1e-9
+        if silent > self.cmd_timeout:
+            self._watchdog_stopped = True
+            try:
+                self.robot.stop()
+            except Exception as exc:
+                self.get_logger().warn(f"watchdog stop failed: {exc}")
+            self.get_logger().warn(
+                f"cmd_vel watchdog: no command for {silent:.2f}s "
+                f"(> {self.cmd_timeout}s) — stopping"
+            )
 
     def srv_stop(self, request, response):
         try:
