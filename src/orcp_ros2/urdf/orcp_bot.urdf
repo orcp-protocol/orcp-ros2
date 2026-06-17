@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!-- A minimal differential-drive robot body, just for visualisation:
+     a box chassis + two wheels. The odom->base_link transform comes from the
+     driver; robot_state_publisher adds the (static) base_link->wheel frames so
+     the whole shape moves together in Foxglove/RViz. -->
+<robot name="orcp_bot">
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.20 0.175 0.05"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0.10 0.35 0.85 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="left_wheel">
+    <visual>
+      <origin rpy="1.5708 0 0" xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.049" length="0.02"/>
+      </geometry>
+      <material name="dark">
+        <color rgba="0.12 0.12 0.12 1.0"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="left_wheel_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_wheel"/>
+    <origin xyz="0 0.0875 -0.015"/>
+  </joint>
+
+  <link name="right_wheel">
+    <visual>
+      <origin rpy="1.5708 0 0" xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.049" length="0.02"/>
+      </geometry>
+      <material name="dark">
+        <color rgba="0.12 0.12 0.12 1.0"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="right_wheel_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_wheel"/>
+    <origin xyz="0 -0.0875 -0.015"/>
+  </joint>
+
+</robot>

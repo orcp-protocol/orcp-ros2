@@ -9,6 +9,8 @@ FROM ros:jazzy-ros-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-jazzy-teleop-twist-keyboard \
+        ros-jazzy-foxglove-bridge \
+        ros-jazzy-robot-state-publisher \
         python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
