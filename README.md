@@ -12,15 +12,32 @@ and prove the whole stack on a laptop.
 
 `orcp_driver`:
 
-| Topic / TF | Direction | Type | Purpose |
-|------------|-----------|------|---------|
-| `/cmd_vel` | subscribe | `geometry_msgs/Twist` | drive commands → ORCP `CMD_VEL` |
+| Interface | Kind | Type | Purpose |
+|-----------|------|------|---------|
+| `/cmd_vel` | subscribe | `geometry_msgs/Twist` | unicycle command → `CMD_VEL` |
+| `/wheel` | subscribe | `std_msgs/Float64MultiArray` | `[left, right]` rad/s → `WHEEL` |
 | `/odom` | publish | `nav_msgs/Odometry` | dead-reckoned pose + velocity |
 | `/battery_state` | publish | `sensor_msgs/BatteryState` | battery voltage |
+| `/diagnostics` | publish | `diagnostic_msgs/DiagnosticArray` | full `STATUS` (fault, estop, mode, duties, …) |
 | `odom → base_link` | publish | TF | robot pose transform |
+| `~/stop` | service | `std_srvs/Trigger` | immediate `STOP` |
+| `~/enable` | service | `std_srvs/SetBool` | `ENABLE ON`/`OFF` |
 
-Parameters: `port` (controller location), `preset` (`SLOW`/`NORMAL`),
-`odom_frame`, `base_frame`, `publish_rate`.
+Parameters: `port` (controller location), `preset` (`SLOW`/`NORMAL` — settable at
+runtime to switch presets; `NORMAL` auto-starts a heartbeat), `odom_frame`,
+`base_frame`, `publish_rate`, `status_rate`.
+
+Runtime configuration (`GET`/`SET`/`SAVE`/`LOAD`/`DEFAULTS`) is intentionally not
+exposed; use the controller's own config tooling for that.
+
+Examples:
+
+```bash
+ros2 topic pub /wheel std_msgs/msg/Float64MultiArray "{data: [4.0, 4.0]}"   # drive straight
+ros2 service call /orcp_driver/stop std_srvs/srv/Trigger "{}"               # stop
+ros2 service call /orcp_driver/enable std_srvs/srv/SetBool "{data: true}"   # enable
+ros2 param set /orcp_driver preset NORMAL                                    # switch preset
+```
 
 ## Running on Linux (native ROS 2)
 
