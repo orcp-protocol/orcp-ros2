@@ -1,0 +1,23 @@
+# Dev / runtime image for the ORCP ROS 2 driver.
+#
+# Base: official ROS 2 Jazzy (Ubuntu 24.04), which already includes rclpy,
+# the standard message packages, colcon, and rosdep. We add the keyboard
+# teleop app (used to prove the stack), pip, and the runtime dependencies of
+# the ORCP Python library + simulator — so the editable installs done at
+# container start need no network.
+FROM ros:jazzy-ros-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-teleop-twist-keyboard \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 24.04 marks its system Python as "externally managed" (PEP 668);
+# inside a throwaway container it is safe to install into it directly.
+RUN pip install --no-cache-dir --break-system-packages \
+        "pyserial>=3.5" "websockets>=11"
+
+# Source ROS 2 in every interactive shell.
+RUN echo 'source /opt/ros/jazzy/setup.bash' >> /root/.bashrc
+
+WORKDIR /work/orcp-ros2
