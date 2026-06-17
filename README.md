@@ -73,6 +73,40 @@ docker exec -it orcp bash -lc \
    ros2 topic echo /odom --field pose.pose.position'
 ```
 
+## Visualization (Foxglove)
+
+To *see* the robot move in 3D, use [Foxglove](https://foxglove.dev) — it connects
+to ROS 2 over a websocket, so it needs no X11/GUI forwarding (ideal on macOS).
+
+Launch the sim + driver **plus** the robot model and a Foxglove bridge:
+
+```bash
+docker exec -it orcp bash -lc \
+  'source /opt/ros/jazzy/setup.bash; source /work/orcp-ros2/install/setup.bash; \
+   ros2 launch orcp_ros2 viz.launch.py'
+```
+
+This also runs `foxglove_bridge` on port **8765** (published to your host by the
+`docker run -p 8765:8765` above). Then in Foxglove (the web app at
+https://app.foxglove.dev or the desktop app):
+
+1. **Open connection** → choose the **"Foxglove WebSocket"** connection type.
+   > ⚠️ Not "Rosbridge" — that's a different protocol/server. We run
+   > `foxglove_bridge`, which is the *Foxglove WebSocket* type.
+2. URL: **`ws://localhost:8765`** → **Open**.
+3. Add a **3D** panel and set its **fixed frame** to **`odom`**. You'll see the
+   robot — a blue box with two wheels.
+4. Drive it with the keyboard teleop (a separate terminal) and watch it move:
+   ```bash
+   docker exec -it orcp bash -lc \
+     'source /opt/ros/jazzy/setup.bash; source /work/orcp-ros2/install/setup.bash; \
+      ros2 run teleop_twist_keyboard teleop_twist_keyboard'
+   ```
+
+> If the browser app refuses to connect to `ws://localhost` from an `https://`
+> page (mixed-content blocking), use the **Foxglove desktop app** — same steps,
+> no restriction.
+
 ## Targeting real hardware
 
 Skip the simulator and point the driver at a real controller:

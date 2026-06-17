@@ -8,9 +8,10 @@ Starts:
   - robot_state_publisher   publishes the robot body shape (URDF) + wheel frames
   - foxglove_bridge         a websocket server on port 8765
 
-Then open Foxglove (https://app.foxglove.dev or the desktop app), connect to
+Then open Foxglove (https://app.foxglove.dev or the desktop app) and connect
+using the "Foxglove WebSocket" connection type (NOT "Rosbridge") to:
   ws://localhost:8765
-add a 3D panel, set its frame to "odom", and drive with:
+Add a 3D panel, set its fixed frame to "odom", and drive with:
   ros2 run teleop_twist_keyboard teleop_twist_keyboard
 """
 import os
