@@ -81,11 +81,14 @@ dependencies.
 # one-time: build the dev image (from this repo's root)
 docker build -t orcp-ros2-dev .
 
-# start a container with the ORCP repos mounted (orcp-ros2 next to orcp-python/orcp-sim)
-docker run -dit --init --name orcp -v /path/to/orcp:/work orcp-ros2-dev sleep infinity
+# start a container with this repo mounted; -p publishes the Foxglove port (below)
+docker run -dit --init --name orcp -p 8765:8765 -v /path/to/orcp:/work orcp-ros2-dev sleep infinity
 
-# install the ORCP libraries into the container (editable)
-docker exec orcp pip install --break-system-packages --no-deps -e /work/orcp-python -e /work/orcp-sim
+# install the ORCP libraries into the container (from PyPI)
+docker exec orcp pip install --break-system-packages orcp orcp-sim
+#   …or, if you're developing the libraries themselves, install them editable
+#   from source instead (mount their repos next to orcp-ros2 under /work first):
+#   docker exec orcp pip install --break-system-packages --no-deps -e /work/orcp-python -e /work/orcp-sim
 
 # build the ROS 2 package
 docker exec orcp bash -lc 'source /opt/ros/jazzy/setup.bash && cd /work/orcp-ros2 && colcon build --symlink-install'
