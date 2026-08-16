@@ -85,7 +85,7 @@ docker build -t orcp-ros2-dev .
 docker run -dit --init --name orcp -p 8765:8765 -v /path/to/orcp:/work orcp-ros2-dev sleep infinity
 
 # install the ORCP libraries into the container (from PyPI)
-docker exec orcp pip install --break-system-packages orcp orcp-sim
+docker exec orcp pip install --break-system-packages "orcp>=0.2.0" "orcp-sim>=0.2.0"
 #   …or, if you're developing the libraries themselves, install them editable
 #   from source instead (mount their repos next to orcp-ros2 under /work first):
 #   docker exec orcp pip install --break-system-packages --no-deps -e /work/orcp-python -e /work/orcp-sim

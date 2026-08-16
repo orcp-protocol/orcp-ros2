@@ -18,8 +18,16 @@ Publishes:
     TF: odom -> base_link
 
 Services:
-    ~/stop          (std_srvs/Trigger)               immediate STOP
+    ~/stop          (std_srvs/Trigger)               immediate STOP (brake)
+    ~/coast         (std_srvs/Trigger)               STOP by coasting to rest
+    ~/hold          (std_srvs/Trigger)               STOP and hold position
     ~/enable        (std_srvs/SetBool)               ENABLE ON (true) / OFF (false)
+
+~/coast and ~/hold are ORCP vendor extensions. A controller without them
+degrades to a brake, which is safe. ⚠️ A position hold is a CONVENIENCE, NOT A
+SAFETY FUNCTION: it needs power, a live controller and working encoders, and
+releases on any power-stage fault — at which point /diagnostics reports ERROR
+"position hold RELEASED". Never use it as a parking brake on a gradient.
 
 Parameters:
     port          (str)    controller location: /dev/ttyACM0, socket://host:port, /tmp/orcp
@@ -51,7 +59,7 @@ from std_srvs.srv import Trigger, SetBool
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from tf2_ros import TransformBroadcaster
 
-from orcp import ORCP, CommandError
+from orcp import ORCP, CommandError, HoldRefused
 
 
 class OrcpDriver(Node):
@@ -113,6 +121,8 @@ class OrcpDriver(Node):
 
         # --- Services ---
         self.create_service(Trigger, "~/stop", self.srv_stop)
+        self.create_service(Trigger, "~/coast", self.srv_coast)
+        self.create_service(Trigger, "~/hold", self.srv_hold)
         self.create_service(SetBool, "~/enable", self.srv_enable)
 
         # --- Runtime preset switching via the 'preset' parameter ---
@@ -130,7 +140,7 @@ class OrcpDriver(Node):
         self.create_timer(0.05, self._check_cmd_watchdog)  # 20 Hz command watchdog
         self.get_logger().info(
             "Ready: /cmd_vel, /wheel | /odom, /battery_state, /diagnostics, TF | "
-            "services ~/stop, ~/enable | param 'preset'."
+            "services ~/stop, ~/coast, ~/hold, ~/enable | param 'preset'."
         )
 
     # ---- preset / heartbeat management ----
@@ -208,7 +218,43 @@ class OrcpDriver(Node):
         try:
             self.robot.stop()
             response.success = True
-            response.message = "stopped"
+            response.message = "stopped (brake)"
+        except Exception as exc:
+            response.success = False
+            response.message = str(exc)
+        return response
+
+    def srv_coast(self, request, response):
+        """Stop by coasting to rest. Vendor extension; controllers that lack it
+        simply brake, which is a safe degradation."""
+        try:
+            self.robot.stop("COAST")
+            response.success = True
+            response.message = "coasting to rest"
+        except Exception as exc:
+            response.success = False
+            response.message = str(exc)
+        return response
+
+    def srv_hold(self, request, response):
+        """Stop and actively hold position.
+
+        ⚠️ A CONVENIENCE, NOT A SAFETY FUNCTION. It requires power, a live
+        controller and working encoders, and releases on any power-stage fault.
+        Do not use it as a parking brake on a gradient — that needs a mechanical
+        or electrically-released brake in the drivetrain.
+        """
+        try:
+            self.robot.hold()
+            response.success = True
+            response.message = "holding position"
+        except HoldRefused as exc:
+            # ⚠️ The stop DID happen; only the hold was refused. Reported as a
+            # failed service call because the caller asked for a hold and has
+            # not got one — but the message must not imply the robot is still
+            # moving.
+            response.success = False
+            response.message = f"stopped, but NOT holding: {exc.reason}"
         except Exception as exc:
             response.success = False
             response.message = str(exc)
@@ -303,6 +349,14 @@ class OrcpDriver(Node):
         if st.estop or st.fault:
             s.level = DiagnosticStatus.ERROR
             s.message = st.fault or "ESTOP"
+        elif st.hold_broken:
+            # ⚠️ hold=2: the controller WAS holding position and is not any
+            # more, because a fault or its thermal limit ended the hold. On a
+            # gradient the robot may now be moving. ERROR rather than WARN — a
+            # released hold is not a degraded state, it is the absence of the
+            # thing that was being relied on.
+            s.level = DiagnosticStatus.ERROR
+            s.message = "position hold RELEASED (fault or timeout)"
         elif self.preset == "NORMAL" and not st.enabled:
             s.level = DiagnosticStatus.WARN
             s.message = "not enabled"
@@ -318,6 +372,19 @@ class OrcpDriver(Node):
             "duty_limit": f"{st.duty_limit:.3f}",
             "vbat": f"{st.vbat:.2f}", "battery": st.battery,
         }
+        # Vendor-extension fields: reported only when the controller has them.
+        # ⚠️ Absent and 0 are different answers — publishing "hold: 0" for a
+        # controller that cannot hold would read as "not holding right now".
+        if st.hold is not None:
+            fields["hold"] = {0: "off", 1: "holding", 2: "RELEASED"}.get(
+                st.hold, str(st.hold))
+        if st.coast is not None:
+            fields["coast"] = str(st.coast)
+        if self.robot.dropped_lines:
+            # Non-zero means the link handed us something that was neither a
+            # push nor a response — line noise, or a mid-stream reconnect.
+            # Surfaced because a silently degrading link is worth seeing early.
+            fields["dropped_lines"] = str(self.robot.dropped_lines)
         s.values = [KeyValue(key=k, value=v) for k, v in fields.items()]
 
         arr = DiagnosticArray()
