@@ -20,7 +20,7 @@
     <visual>
       <origin rpy="1.5708 0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder radius="0.049" length="0.02"/>
+        <cylinder radius="0.050" length="0.02"/>
       </geometry>
       <material name="dark">
         <color rgba="0.12 0.12 0.12 1.0"/>
@@ -37,7 +37,7 @@
     <visual>
       <origin rpy="1.5708 0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder radius="0.049" length="0.02"/>
+        <cylinder radius="0.050" length="0.02"/>
       </geometry>
       <material name="dark">
         <color rgba="0.12 0.12 0.12 1.0"/>
