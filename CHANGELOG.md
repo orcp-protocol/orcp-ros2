@@ -2,7 +2,34 @@
 
 ---
 
-## 0.2.0 — 2026-08-27
+## 0.2.1 — 2026-10-14
+
+Packaging only — no code change to the node.
+
+### Added — MIT `LICENSE`
+
+`0.2.0` was tagged without a licence file, so anyone checking out that tag
+received an unlicensed repository. `package.xml` had declared MIT all along;
+the file itself was missing.
+
+### Fixed — `setup.py` version had drifted
+
+It still said `0.1.0`, never having been bumped for `0.2.0`, so `colcon build`
+produced a Python package whose metadata disagreed with `package.xml`. Both now
+say `0.2.1`.
+
+### Fixed — URDF wheel radius `0.049` → `0.050`
+
+The URDF disagreed with the firmware default, so anything deriving odometry or
+visualisation geometry from the model was off by 2 % against the board's own
+kinematics.
+
+### Why a new tag rather than moving `v0.2.0`
+
+`v0.2.0` was already pushed, and adding a licence changes what is being
+distributed. The guide tells readers to clone the default branch, which has
+carried both of these since September; this tag is so a reader can pin a known
+revision instead of tracking a branch that may move under them mid-setup.
 
 ### ⚠️ Requires `orcp>=0.2.0` — a correctness floor, not a preference
 

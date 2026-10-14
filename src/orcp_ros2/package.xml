@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>orcp_ros2</name>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
   <description>ROS 2 driver and teleop bringup for ORCP-compliant motor controllers.</description>
   <maintainer email="jon@controlbits.com">ORCP Contributors</maintainer>
   <license>MIT</license>
